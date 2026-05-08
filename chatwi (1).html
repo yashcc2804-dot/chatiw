@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Chatwi</title>
+<script src="https://unpkg.com/peerjs@1.5.2/dist/peerjs.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body { font-family: 'DM Sans', sans-serif; background: #000; color: #e0e0e0; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+  /* SCREENS */
+  .screen { display: none; flex-direction: column; align-items: center; justify-content: center; height: 100vh; padding: 24px; }
+  .screen.active { display: flex; }
+
+  /* JOIN SCREEN */
+  .logo { font-size: 32px; font-weight: 600; color: #fff; letter-spacing: -1px; margin-bottom: 6px; }
+  .logo span { color: #7c6fff; }
+  .tagline { font-size: 13px; color: #444; margin-bottom: 36px; }
+
+  .card {
+    background: #0d0d0d; border: 1px solid #1f1f1f;
+    border-radius: 16px; padding: 28px; width: 100%; max-width: 400px;
+  }
+  .card label { font-size: 12px; color: #555; display: block; margin-bottom: 6px; letter-spacing: 0.5px; text-transform: uppercase; }
+  .card input {
+    width: 100%; padding: 10px 14px;
+    background: #1a1a1a; border: 1px solid #2a2a2a;
+    border-radius: 10px; color: #ddd; font-size: 14px;
+    font-family: 'DM Sans', sans-serif; outline: none; margin-bottom: 16px;
+  }
+  .card input:focus { border-color: #7c6fff; }
+  .card input::placeholder { color: #383838; }
+
+  .btn {
+    width: 100%; padding: 11px;
+    background: #534AB7; border: none; border-radius: 10px;
+    color: #fff; font-size: 14px; font-weight: 600;
+    font-family: 'DM Sans', sans-serif; cursor: pointer;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .btn:hover { background: #6b62d4; }
+  .btn:active { transform: scale(0.98); }
+  .btn:disabled { background: #2a2a2a; color: #444; cursor: not-allowed; }
+
+  .divider { text-align: center; color: #2a2a2a; font-size: 13px; margin: 18px 0; position: relative; }
+  .divider::before, .divider::after { content: ''; position: absolute; top: 50%; width: 42%; height: 1px; background: #1f1f1f; }
+  .divider::before { left: 0; } .divider::after { right: 0; }
+
+  .my-id-box {
+    background: #1a1a1a; border: 1px solid #2a2a2a;
+    border-radius: 10px; padding: 10px 14px;
+    display: flex; align-items: center; justify-content: space-between;
+    margin-bottom: 16px;
+  }
+  .my-id-label { font-size: 11px; color: #555; margin-bottom: 2px; text-transform: uppercase; letter-spacing: 0.5px; }
+  .my-id-value { font-size: 15px; font-weight: 600; color: #7c6fff; letter-spacing: 1px; font-family: monospace; }
+  .copy-btn {
+    background: #2a2a2a; border: none; border-radius: 7px;
+    color: #888; font-size: 12px; padding: 5px 10px; cursor: pointer;
+    font-family: 'DM Sans', sans-serif; transition: background 0.15s, color 0.15s;
+  }
+  .copy-btn:hover { background: #333; color: #ccc; }
+
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; background: #333; display: inline-block; margin-right: 6px; transition: background 0.3s; }
+  .status-dot.online { background: #1D9E75; }
+  .status-text { font-size: 12px; color: #444; }
+
+  /* CHAT SCREEN */
+  #chat-screen { display: none; flex-direction: column; height: 100vh; }
+  #chat-screen.active { display: flex; }
+
+  .chat-header {
+    padding: 14px 20px; background: #0d0d0d;
+    border-bottom: 1px solid #1f1f1f;
+    display: flex; align-items: center; gap: 12px;
+  }
+  .chat-logo { font-size: 17px; font-weight: 600; color: #fff; letter-spacing: -0.5px; }
+  .chat-logo span { color: #7c6fff; }
+  .peer-info { display: flex; flex-direction: column; }
+  .peer-name { font-size: 14px; font-weight: 600; color: #fff; }
+  .peer-status { font-size: 11px; color: #555; }
+  .peer-status.connected { color: #1D9E75; }
+
+  .disconnect-btn {
+    margin-left: auto; background: none; border: 1px solid #2a2a2a;
+    border-radius: 8px; color: #555; font-size: 12px;
+    padding: 5px 12px; cursor: pointer; font-family: 'DM Sans', sans-serif;
+    transition: border-color 0.15s, color 0.15s;
+  }
+  .disconnect-btn:hover { border-color: #c0392b; color: #e74c3c; }
+
+  .messages {
+    flex: 1; overflow-y: auto; padding: 20px;
+    display: flex; flex-direction: column; gap: 8px;
+  }
+
+  .msg-row { display: flex; align-items: flex-end; gap: 8px; }
+  .msg-row.me { flex-direction: row-reverse; }
+
+  .avatar {
+    width: 28px; height: 28px; border-radius: 50%;
+    background: #2a2560; color: #b0aaff;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 10px; font-weight: 600; flex-shrink: 0;
+  }
+  .avatar.me-av { background: #534AB7; color: #fff; }
+
+  .bubble {
+    max-width: 65%; padding: 10px 14px;
+    border-radius: 18px; font-size: 14px; line-height: 1.5;
+    color: #ddd; background: #1a1a1a; border: 1px solid #2a2a2a;
+    word-break: break-word;
+  }
+  .bubble.me { background: #534AB7; color: #fff; border-color: transparent; }
+
+  .msg-meta { font-size: 11px; color: #333; margin-top: 3px; }
+  .msg-row.me .msg-meta { text-align: right; }
+
+  .system-msg {
+    text-align: center; font-size: 12px; color: #333;
+    padding: 4px 0; margin: 4px 0;
+  }
+
+  .input-area {
+    padding: 12px 16px; background: #0d0d0d;
+    border-top: 1px solid #1f1f1f;
+    display: flex; align-items: center; gap: 10px;
+  }
+  .input-area input {
+    flex: 1; padding: 10px 16px; border-radius: 999px;
+    font-size: 14px; font-family: 'DM Sans', sans-serif;
+    background: #1a1a1a; color: #ddd; border: 1px solid #2a2a2a; outline: none;
+  }
+  .input-area input::placeholder { color: #383838; }
+  .input-area input:focus { border-color: #444; }
+  .input-area input:disabled { opacity: 0.4; }
+
+  .send-btn {
+    width: 38px; height: 38px; border-radius: 50%;
+    background: #534AB7; border: none; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 16px; color: #fff; flex-shrink: 0;
+    transition: background 0.15s, transform 0.1s;
+  }
+  .send-btn:hover { background: #6b62d4; }
+  .send-btn:active { transform: scale(0.95); }
+  .send-btn:disabled { background: #2a2a2a; cursor: not-allowed; }
+
+  ::-webkit-scrollbar { width: 4px; }
+  ::-webkit-scrollbar-track { background: transparent; }
+  ::-webkit-scrollbar-thumb { background: #222; border-radius: 999px; }
+
+  .toast {
+    position: fixed; bottom: 80px; left: 50%; transform: translateX(-50%);
+    background: #1a1a1a; border: 1px solid #2a2a2a; color: #ccc;
+    padding: 9px 18px; border-radius: 999px; font-size: 13px;
+    opacity: 0; transition: opacity 0.3s; pointer-events: none; z-index: 99;
+  }
+  .toast.show { opacity: 1; }
+
+  .error-msg { color: #e74c3c; font-size: 12px; margin-top: -10px; margin-bottom: 12px; }
+</style>
+</head>
+<body>
+
+<!-- JOIN SCREEN -->
+<div class="screen active" id="join-screen">
+  <div class="logo">Chat<span>wi</span></div>
+  <div class="tagline">Private peer-to-peer messaging</div>
+
+  <div class="card">
+    <label>Your name</label>
+    <input type="text" id="my-name" placeholder="Enter your name…" maxlength="20" />
+
+    <div style="display:flex;align-items:center;margin-bottom:16px;">
+      <span class="status-dot" id="status-dot"></span>
+      <span class="status-text" id="status-text">Connecting to network…</span>
+    </div>
+
+    <div class="my-id-box" id="my-id-box" style="display:none;">
+      <div>
+        <div class="my-id-label">Your ID — share this</div>
+        <div class="my-id-value" id="my-id-display">———</div>
+      </div>
+      <button class="copy-btn" onclick="copyMyId()">Copy</button>
+    </div>
+
+    <div class="divider">connect to friend</div>
+
+    <label>Friend's ID</label>
+    <input type="text" id="friend-id" placeholder="Paste their ID here…" maxlength="6" style="text-transform:uppercase;letter-spacing:2px;" />
+    <div class="error-msg" id="connect-error" style="display:none;"></div>
+
+    <button class="btn" id="connect-btn" onclick="connectToFriend()" disabled>Connect</button>
+  </div>
+</div>
+
+<!-- CHAT SCREEN -->
+<div id="chat-screen">
+  <div class="chat-header">
+    <div class="chat-logo">Chat<span>wi</span></div>
+    <div style="width:1px;height:24px;background:#1f1f1f;margin:0 4px;"></div>
+    <div class="peer-info">
+      <div class="peer-name" id="peer-display-name">Friend</div>
+      <div class="peer-status connected" id="peer-status">Connected</div>
+    </div>
+    <button class="disconnect-btn" onclick="disconnectChat()">Leave</button>
+  </div>
+
+  <div class="messages" id="messages">
+    <div class="system-msg">You're now connected — say hi! 👋</div>
+  </div>
+
+  <div class="input-area">
+    <input type="text" id="msg-input" placeholder="Type a message…" onkeydown="handleKey(event)" />
+    <button class="send-btn" onclick="sendMsg()" id="send-btn">➤</button>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+let peer, conn;
+let myName = '';
+let friendName = '';
+let myId = '';
+
+function generateId() {
+  return Math.random().toString(36).substring(2, 8).toUpperCase();
+}
+
+function initPeer() {
+  myId = generateId();
+  peer = new Peer(myId, { debug: 0 });
+
+  peer.on('open', () => {
+    document.getElementById('status-dot').classList.add('online');
+    document.getElementById('status-text').textContent = 'Ready to connect';
+    document.getElementById('my-id-display').textContent = myId;
+    document.getElementById('my-id-box').style.display = 'flex';
+    document.getElementById('connect-btn').disabled = false;
+  });
+
+  peer.on('connection', (connection) => {
+    conn = connection;
+    setupConnection();
+  });
+
+  peer.on('error', (err) => {
+    document.getElementById('status-text').textContent = 'Network error — refresh and try again';
+    showToast('Connection error. Please refresh.');
+  });
+}
+
+function setupConnection() {
+  conn.on('open', () => {
+    const name = document.getElementById('my-name').value.trim() || 'You';
+    myName = name;
+    conn.send(JSON.stringify({ type: 'hello', name: myName }));
+  });
+
+  conn.on('data', (raw) => {
+    const data = JSON.parse(raw);
+    if (data.type === 'hello') {
+      friendName = data.name;
+      document.getElementById('peer-display-name').textContent = friendName;
+      showChatScreen();
+    } else if (data.type === 'msg') {
+      appendMessage(data.text, false, data.name, data.time);
+    } else if (data.type === 'bye') {
+      appendSystem(friendName + ' left the chat.');
+      document.getElementById('peer-status').textContent = 'Disconnected';
+      document.getElementById('peer-status').classList.remove('connected');
+      document.getElementById('msg-input').disabled = true;
+      document.getElementById('send-btn').disabled = true;
+    }
+  });
+
+  conn.on('close', () => {
+    appendSystem(friendName + ' disconnected.');
+    document.getElementById('peer-status').textContent = 'Disconnected';
+    document.getElementById('peer-status').classList.remove('connected');
+    document.getElementById('msg-input').disabled = true;
+    document.getElementById('send-btn').disabled = true;
+  });
+}
+
+function connectToFriend() {
+  const name = document.getElementById('my-name').value.trim();
+  if (!name) { showError('Please enter your name first.'); return; }
+  const fid = document.getElementById('friend-id').value.trim().toUpperCase();
+  if (!fid || fid.length < 4) { showError('Enter your friend\'s ID.'); return; }
+  if (fid === myId) { showError('That\'s your own ID!'); return; }
+
+  myName = name;
+  hideError();
+  document.getElementById('connect-btn').disabled = true;
+  document.getElementById('connect-btn').textContent = 'Connecting…';
+
+  conn = peer.connect(fid, { reliable: true });
+  setupConnection();
+
+  conn.on('open', () => {
+    conn.send(JSON.stringify({ type: 'hello', name: myName }));
+  });
+
+  conn.on('error', () => {
+    showError('Could not connect. Check the ID and try again.');
+    document.getElementById('connect-btn').disabled = false;
+    document.getElementById('connect-btn').textContent = 'Connect';
+  });
+
+  setTimeout(() => {
+    if (!friendName) {
+      showError('No response. Make sure your friend is online with the correct ID.');
+      document.getElementById('connect-btn').disabled = false;
+      document.getElementById('connect-btn').textContent = 'Connect';
+    }
+  }, 10000);
+}
+
+function showChatScreen() {
+  document.getElementById('join-screen').classList.remove('active');
+  document.getElementById('chat-screen').classList.add('active');
+  document.getElementById('msg-input').focus();
+}
+
+function sendMsg() {
+  const input = document.getElementById('msg-input');
+  const text = input.value.trim();
+  if (!text || !conn || conn.open === false) return;
+  const time = getTime();
+  conn.send(JSON.stringify({ type: 'msg', text, name: myName, time }));
+  appendMessage(text, true, myName, time);
+  input.value = '';
+}
+
+function appendMessage(text, isMe, name, time) {
+  const msgs = document.getElementById('messages');
+  const initials = name.substring(0, 2).toUpperCase();
+  const row = document.createElement('div');
+  row.className = 'msg-row' + (isMe ? ' me' : '');
+  row.innerHTML = `
+    <div class="avatar ${isMe ? 'me-av' : ''}">${initials}</div>
+    <div>
+      <div class="bubble ${isMe ? 'me' : ''}">${escHtml(text)}</div>
+      <div class="msg-meta">${isMe ? 'You' : name} · ${time}</div>
+    </div>`;
+  msgs.appendChild(row);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function appendSystem(text) {
+  const msgs = document.getElementById('messages');
+  const div = document.createElement('div');
+  div.className = 'system-msg';
+  div.textContent = text;
+  msgs.appendChild(div);
+  msgs.scrollTop = msgs.scrollHeight;
+}
+
+function disconnectChat() {
+  if (conn) {
+    conn.send(JSON.stringify({ type: 'bye' }));
+    conn.close();
+  }
+  location.reload();
+}
+
+function handleKey(e) { if (e.key === 'Enter') sendMsg(); }
+
+function copyMyId() {
+  navigator.clipboard.writeText(myId).then(() => showToast('ID copied! Share it with your friend.'));
+}
+
+function showToast(msg) {
+  const t = document.getElementById('toast');
+  t.textContent = msg; t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 2800);
+}
+
+function showError(msg) {
+  const e = document.getElementById('connect-error');
+  e.textContent = msg; e.style.display = 'block';
+}
+function hideError() {
+  document.getElementById('connect-error').style.display = 'none';
+}
+
+function getTime() {
+  const now = new Date();
+  const h = now.getHours(); const m = String(now.getMinutes()).padStart(2,'0');
+  return (h % 12 || 12) + ':' + m + ' ' + (h >= 12 ? 'PM' : 'AM');
+}
+
+function escHtml(str) {
+  return str.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+initPeer();
+</script>
+</body>
+</html>
